@@ -1,0 +1,31 @@
+.date-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  border-radius: 9999px;
+  border: none;
+  background-color: #2a2e30;
+  color: #9ca3af;
+  white-space: nowrap;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.date-btn.active {
+  background-color: #00b8f8;
+  color: black;
+}
+
+.date-btn:hover:not(.active) {
+  color: white;
+}
+
+.date-selector-container {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: none; /* Firefox */
+}
+
+.date-selector-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}

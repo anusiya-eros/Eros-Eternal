@@ -1,0 +1,16 @@
+/* src/SplashScreen.css */
+@keyframes rotateAnimation {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Optional: smooth performance */
+.rotate-image-bg {
+  animation: rotateAnimation 10s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
