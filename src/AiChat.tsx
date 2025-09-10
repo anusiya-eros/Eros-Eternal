@@ -59,6 +59,8 @@ const AiChat: React.FC = () => {
         if (isInitialized) return;
 
         setIsLoading(true);
+        const userId = localStorage.getItem("user_id") || "0";
+
         try {
             const response = await fetch('http://192.168.29.154:8002/api/v1/chat/spiritual', {
                 method: 'POST',
@@ -66,7 +68,7 @@ const AiChat: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    user_id: "123",
+                    user_id: userId,
                     message: "start"
                 })
             });
@@ -80,7 +82,7 @@ const AiChat: React.FC = () => {
             if (data.success && data.data?.response) {
                 setMessages([{
                     sender: "ai",
-                    text: data.data.response
+                    text: data.data.response.replace(/<br\s*\/?>/gi, '\n') // Convert <br/> to newlines
                 }]);
                 setIsInitialized(true);
             }
@@ -114,6 +116,8 @@ const AiChat: React.FC = () => {
         setIsLoading(true);
 
         try {
+            const userId = localStorage.getItem("user_id") || "0";
+
             // Make API call with user's actual message
             const response = await fetch('http://192.168.29.154:8002/api/v1/chat/spiritual', {
                 method: 'POST',
@@ -121,7 +125,7 @@ const AiChat: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    user_id: "123",
+                    user_id: userId,
                     message: currentInput
                 })
             });
@@ -139,7 +143,7 @@ const AiChat: React.FC = () => {
                     {
                         sender: "ai",
                         text: data.success && data.data?.response
-                            ? data.data.response
+                            ? data.data.response.replace(/<br\s*\/?>/gi, '\n') // Convert <br/> to newlines
                             : "Sorry, I couldn't process your request."
                     },
                 ]);
@@ -448,7 +452,12 @@ const AiChat: React.FC = () => {
                                                     {msg.text}
                                                 </ReactMarkdown>
                                             ) : (
-                                                <div>{msg.text}</div>
+                                                <div
+                                                    style={{ whiteSpace: "pre-wrap" }}
+                                                    dangerouslySetInnerHTML={{
+                                                        __html: msg.text.replace(/<br\s*\/?>/gi, '<br/>')
+                                                    }}
+                                                />
                                             )}
                                         </div>
                                     )}

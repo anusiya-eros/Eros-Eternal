@@ -40,3 +40,17 @@
 .read-the-docs {
   color: #888;
 }
+
+
+.eternal-header {
+  font-family: 'Poppins', sans-serif;
+  font-size: 3.5em;
+  font-weight: 700;
+  background: linear-gradient(90deg, rgb(74, 222, 128), rgb(96, 165, 250));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+  margin: 2rem auto;
+  width: fit-content;
+}

@@ -10,6 +10,18 @@ import sparkle from "./sparkle.png";
 import Stars from "./components/stars";
 import VoiceMessage from "./VoiceMessage";
 import MicVisualizer from "./MicVisualizer";
+import "./header.css";
+
+interface Message {
+  sender: "user" | "ai";
+  text?: string;
+  imageList?: string[];
+  audio?: string;
+  duration?: number;
+  isSuggestion?: boolean;
+  report?: any;
+  isThinking?: boolean; // Add this line
+}
 
 // --- VoiceMessage component (no export needed if same file) ---
 // const VoiceMessage: React.FC<{ url: string; duration: number }> = ({ url, duration }) => {
@@ -135,6 +147,9 @@ const ChatPage: React.FC = () => {
   const [conversationActive, setConversationActive] = useState(false);
   const [reportType, setReportType] = useState<string | null>(null);
   const [answers, setAnswers] = useState<string[]>([]);
+  const [reportGenerated, setReportGenerated] = useState(false); // Track if report is generated
+  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   interface Message {
     sender: "user" | "ai";
@@ -167,10 +182,11 @@ const ChatPage: React.FC = () => {
 
   // ✅ Fetch welcome message on mount
   useEffect(() => {
+    const userId = localStorage.getItem("user_id");
     const fetchWelcome = async () => {
       try {
         const res = await fetch(
-          "http://192.168.29.202:8000/api/v1/welcome/welcome"
+          "http://192.168.29.154:8002/api/v1/welcome/welcome/${userId}"
         );
         const data = await res.json();
 
@@ -210,13 +226,19 @@ const ChatPage: React.FC = () => {
   };
 
   const sendMessage = async (textArg?: string) => {
+    const userId = localStorage.getItem("user_id");
+    
     const message = (textArg ?? inputValue ?? "").toString();
-    const BASE_URL = "http://192.168.29.202:8000";
+    const BASE_URL = "http://192.168.29.154:8002";
     if (!message.trim()) return;
 
     // Show user bubble
     setMessages((prev) => [...prev, { sender: "user", text: message }]);
     setInputValue("");
+    setIsLoadingResponse(true); // Start loading
+
+    // Add thinking message
+    setMessages((prev) => [...prev, { sender: "ai", text: "Thinking...", isThinking: true }]);
 
     if (conversationActive) {
       // Always save the user's answer
@@ -226,35 +248,48 @@ const ChatPage: React.FC = () => {
         const form = new FormData();
         form.append("user_message", message);
 
-        const res = await fetch(`${BASE_URL}/api/v1/welcome/process_message`, {
+        const res = await fetch(`${BASE_URL}/api/v1/welcome/process_message/${userId}`, {
           method: "POST",
           body: form,
         });
 
         const data = await res.json();
 
+        // Remove thinking message
+        setMessages((prev) => prev.filter(msg => !msg.isThinking));
+
         if (data?.message) {
           if (data.message.includes("Generating your detailed report")) {
-            // ✅ Call generateReport AFTER storing last answer
+            setIsGeneratingReport(true);
+            setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
+            // Call generateReport AFTER storing last answer
             await generateReport([...answers, message]);
           } else {
-            setMessages((prev) => [
-              ...prev,
-              { sender: "ai", text: data.message },
-            ]);
+            setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
           }
         }
       } catch (err) {
+        // Remove thinking message on error
+        setMessages((prev) => prev.filter(msg => !msg.isThinking));
         console.error("Process answer error:", err);
+        setMessages((prev) => [...prev, { sender: "ai", text: "Sorry, something went wrong. Please try again." }]);
+      } finally {
+        setIsLoadingResponse(false);
       }
     } else {
       // Normal chat logic if outside the flow
+      // Remove thinking message and add response after delay (simulate API call)
+      setTimeout(() => {
+        setMessages((prev) => prev.filter(msg => !msg.isThinking));
+        setMessages((prev) => [...prev, { sender: "ai", text: "I'm here to help! What would you like to know?" }]);
+        setIsLoadingResponse(false);
+      }, 1000);
     }
   };
 
   const generateReport = async (finalAnswers?: string[]) => {
     try {
-      const BASE_URL = "http://192.168.29.202:8000";
+      const BASE_URL = "http://192.168.29.154:8002";
       const userId = localStorage.getItem("user_id") || "0";
 
       const body = {
@@ -271,21 +306,24 @@ const ChatPage: React.FC = () => {
 
       const data = await res.json();
 
-      // setMessages((prev) => [
-      //   ...prev,
-      //   { sender: "ai", text: "✅ Your detailed report is ready!" },
-      //   { sender: "ai", text: JSON.stringify(data, null, 2) },
-      // ]);
-
       setMessages((prev) => [
         ...prev,
-        { sender: "ai", report: data.report }, // 👈 stored here
+        { sender: "ai", report: data.report },
       ]);
 
       setConversationActive(false);
+      setReportGenerated(true);
     } catch (err) {
       console.error("Report generation error:", err);
+      setMessages((prev) => [...prev, { sender: "ai", text: "Failed to generate report. Please try again." }]);
+    } finally {
+      setIsGeneratingReport(false);
     }
+  };
+
+  // Navigate to result page
+  const handleGoHome = () => {
+    navigate('/result');
   };
 
   const startRecording = async () => {
@@ -568,9 +606,10 @@ const ChatPage: React.FC = () => {
     cancelAnimationFrame(animationId);
     setIsRecording(false);
   };
+  
 
   const handleSuggestionClick = async (question: string) => {
-    const BASE_URL = "http://192.168.29.202:8000";
+    const BASE_URL = "http://192.168.29.154:8002";
 
     const reportTypes: Record<string, string> = {
       "What's my vibe right now?": "vibrational_frequency",
@@ -586,23 +625,37 @@ const ChatPage: React.FC = () => {
 
     // Show user bubble
     setMessages((prev) => [...prev, { sender: "user", text: question }]);
+    setIsLoadingResponse(true);
+
+    // Add thinking message
+    setMessages((prev) => [...prev, { sender: "ai", text: "Thinking...", isThinking: true }]);
 
     try {
+            const userId = localStorage.getItem("user_id") || "0";
+
       const form = new FormData();
       form.append("user_message", question);
 
-      const res = await fetch(`${BASE_URL}/api/v1/welcome/process_message`, {
+      const res = await fetch(`${BASE_URL}/api/v1/welcome/process_message/${userId}`, {
         method: "POST",
-        body: form, // ✅ Browser sets Content-Type automatically
+        body: form,
       });
 
       const data = await res.json();
+
+      // Remove thinking message
+      setMessages((prev) => prev.filter(msg => !msg.isThinking));
 
       if (data?.message) {
         setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
       }
     } catch (err) {
+      // Remove thinking message on error
+      setMessages((prev) => prev.filter(msg => !msg.isThinking));
       console.error("Process message error:", err);
+      setMessages((prev) => [...prev, { sender: "ai", text: "Sorry, something went wrong. Please try again." }]);
+    } finally {
+      setIsLoadingResponse(false);
     }
   };
 
@@ -693,7 +746,7 @@ const ChatPage: React.FC = () => {
 
         {/* Header */}
         <div className="position-relative z-10 d-flex justify-content-between align-items-center p-4">
-          <h2 className="h4 fw-bold">Eternal Ai</h2>
+          <h2 className="h4 fw-bold eternal-header" style={{color: "#00A2FF",}}> Eternal AI</h2>
         </div>
 
         {/* Main Content Area */}
@@ -804,9 +857,8 @@ const ChatPage: React.FC = () => {
                   return (
                     <div
                       key={i}
-                      className={`d-flex mb-2 ${
-                        isUser ? "justify-content-end" : "justify-content-start"
-                      }`}
+                      className={`d-flex mb-2 ${isUser ? "justify-content-end" : "justify-content-start"
+                        }`}
                     >
                       <div
                         className={`px-3 py-2 rounded-3`}
@@ -816,13 +868,13 @@ const ChatPage: React.FC = () => {
                           background: isUser
                             ? "#00b8f8"
                             : isSuggestion
-                            ? "#e9ecef"
-                            : "#6c757d",
+                              ? "#e9ecef"
+                              : "#6c757d",
                           color: isUser
                             ? "white"
                             : isSuggestion
-                            ? "black"
-                            : "white",
+                              ? "black"
+                              : "white",
                           cursor: isSuggestion ? "pointer" : "default",
                           userSelect: "none", // prevent text selection blocking click
                         }}
@@ -881,6 +933,35 @@ const ChatPage: React.FC = () => {
                     </div>
                   );
                 })}
+
+                {reportGenerated && (
+                  <div className="d-flex justify-content-center mt-4 mb-3">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="px-5 py-3 rounded-pill fw-semibold"
+                      style={{
+                        backgroundColor: "#00b8f8",
+                        borderColor: "#00b8f8",
+                        fontSize: "1.1rem",
+                        boxShadow: "0 4px 12px rgba(0, 184, 248, 0.3)",
+                        transition: "all 0.2s ease",
+                      }}
+                      onClick={handleGoHome}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 6px 16px rgba(0, 184, 248, 0.4)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 184, 248, 0.3)";
+                      }}
+                    >
+                      <i className="bi bi-house-door me-2"></i>
+                      Go Home
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1010,7 +1091,7 @@ const ChatPage: React.FC = () => {
                       <Button
                         variant="info"
                         className="rounded-pill px-3 py-2 ms-2"
-                        disabled={!inputValue}
+                        disabled={!inputValue || isLoadingResponse}
                         style={{
                           backgroundColor: "#00b8f8",
                           borderColor: "#00b8f8",
@@ -1022,7 +1103,13 @@ const ChatPage: React.FC = () => {
                         }}
                         onClick={sendMessage}
                       >
-                        <i className="bi bi-send"></i>
+                        {isLoadingResponse ? (
+                          <div className="spinner-border spinner-border-sm" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                          </div>
+                        ) : (
+                          <i className="bi bi-send"></i>
+                        )}
                       </Button>
                     </div>
                   </>

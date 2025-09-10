@@ -217,82 +217,82 @@ const AgeTrack: React.FC = () => {
     };
 
 
-   const generateHealthReport = async () => {
-    try {
-        setCurrentStep('generating_report');
-        
-        const formData = new FormData();
-        
-        // Append image if available
-        if (collectedData.imageData) {
-            formData.append('face_image', collectedData.imageData, 'face.png');
-        } else {
-            console.warn("No image data available, appending empty string for face_image");
-            formData.append('face_image', ''); // Fallback if required
-        }
+    const generateHealthReport = async () => {
+        try {
+            setCurrentStep('generating_report');
 
-        // Append audio if available
-        if (collectedData.voiceData) {
-            const fileExtension = collectedData.voiceData.type.includes('wav') ? '.wav' : '.webm';
-            formData.append('audio_data', collectedData.voiceData, `voice_recording${fileExtension}`);
-        } else {
-            console.warn("No voice data available, appending empty string for audio_data");
-            formData.append('audio_data', ''); // Fallback if required
-        }
+            const formData = new FormData();
 
-        // Append text fields, ensuring they are strings
-        formData.append('stool_pattern', collectedData.stoolPattern || '');
-        formData.append('daily_routine', collectedData.dailyRoutine || '');
-        formData.append('additional_info', collectedData.additionalInfo || '');
-        formData.append('user_id', userId || '123');
+            // Append image if available
+            if (collectedData.imageData) {
+                formData.append('face_image', collectedData.imageData, 'face.png');
+            } else {
+                console.warn("No image data available, appending empty string for face_image");
+                formData.append('face_image', ''); // Fallback if required
+            }
 
-        // Log FormData contents for debugging
-        for (let [key, value] of formData.entries()) {
-            console.log(key, typeof value === 'string' ? value : 'Non-string value');
-        }
+            // Append audio if available
+            if (collectedData.voiceData) {
+                const fileExtension = collectedData.voiceData.type.includes('wav') ? '.wav' : '.webm';
+                formData.append('audio_data', collectedData.voiceData, `voice_recording${fileExtension}`);
+            } else {
+                console.warn("No voice data available, appending empty string for audio_data");
+                formData.append('audio_data', ''); // Fallback if required
+            }
 
-        const reportUrl = `${baseApiUrl}/api/v1/bio/holistic-analyze`;
-        const response = await fetch(reportUrl, {
-            method: 'POST',
-            body: formData,
-        });
+            // Append text fields, ensuring they are strings
+            formData.append('stool_pattern', collectedData.stoolPattern || '');
+            formData.append('daily_routine', collectedData.dailyRoutine || '');
+            formData.append('additional_info', collectedData.additionalInfo || '');
+            formData.append('user_id', userId || '123');
 
-        if (!response.ok) {
-            const errorText = await response.text(); // Get full error response
-            throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-        }
+            // Log FormData contents for debugging
+            for (let [key, value] of formData.entries()) {
+                console.log(key, typeof value === 'string' ? value : 'Non-string value');
+            }
 
-        const reportData = await response.json();
+            const reportUrl = `${baseApiUrl}/api/v1/bio/holistic-analyze`;
+            const response = await fetch(reportUrl, {
+                method: 'POST',
+                body: formData,
+            });
 
-        if (reportData.success) {
-            setCurrentStep('completed');
-            setMessages((prev) => [...prev, {
-                sender: "ai",
-                text: reportData.message || "Your personalized health report has been generated successfully!"
-            }]);
+            if (!response.ok) {
+                const errorText = await response.text(); // Get full error response
+                throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+            }
 
-            if (reportData.data && reportData.data.result) {
-                const formattedReport = formatHealthReport(reportData.data.result, reportData.data.analysis);
+            const reportData = await response.json();
+
+            if (reportData.success) {
+                setCurrentStep('completed');
                 setMessages((prev) => [...prev, {
                     sender: "ai",
-                    text: formattedReport
+                    text: reportData.message || "Your personalized health report has been generated successfully!"
+                }]);
+
+                if (reportData.data && reportData.data.result) {
+                    const formattedReport = formatHealthReport(reportData.data.result, reportData.data.analysis);
+                    setMessages((prev) => [...prev, {
+                        sender: "ai",
+                        text: formattedReport
+                    }]);
+                }
+                setShowGoBack(true);
+            } else {
+                setMessages((prev) => [...prev, {
+                    sender: "ai",
+                    text: reportData.message || "Failed to generate report. Please try again."
                 }]);
             }
-            setShowGoBack(true);
-        } else {
+        } catch (error) {
+            console.error("Health report API error:", error);
             setMessages((prev) => [...prev, {
                 sender: "ai",
-                text: reportData.message || "Failed to generate report. Please try again."
+                text: `Error occurred while generating your health report. Please try again. Details: ${error.message}`
             }]);
         }
-    } catch (error) {
-        console.error("Health report API error:", error);
-        setMessages((prev) => [...prev, {
-            sender: "ai",
-            text: `Error occurred while generating your health report. Please try again. Details: ${error.message}`
-        }]);
-    }
-};
+    };
 
 
     const formatHealthReport = (result: string, analysis: any): string => {
@@ -542,14 +542,87 @@ Thank you for using our service! (Generated at 02:47 PM IST on Saturday, Septemb
         return currentStep !== 'image_uploaded';
     };
 
+     const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const audioUrl = URL.createObjectURL(file);
+
+    // Save voice data for API
+    setCollectedData((prev) => ({ ...prev, voiceData: file }));
+
+    // Add to chat messages
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "user",
+        audio: audioUrl,
+        audioBlob: file,
+        duration: 0, // not available for uploads
+      },
+    ]);
+
+    // Move to next step
+    if (currentStep === "image_uploaded") {
+      setCurrentStep("voice_uploaded");
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "ai",
+          text: "Perfect! Audio uploaded. Now please describe your stool pattern (e.g., frequency, consistency, color, any irregularities).",
+        },
+      ]);
+    }
+  };
+
     return (
         <div className="d-flex w-100 h-100 min-vh-100 min-vw-100 bg-black text-white overflow-hidden">
             <Stars />
 
             <div className="flex-grow-1 d-flex flex-column position-relative">
                 <div className="position-relative z-10 d-flex justify-content-between align-items-center p-4">
-                    <h2 className="h4 fw-bold">Eternal Ai</h2>
+                    <div className="d-flex align-items-center">
+                        {/* Go Back Button */}
+                        <button
+                            type="button"
+                            className="btn btn-info rounded-pill me-3"
+                            onClick={() => navigate(-1)}   // goes back one step in history
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.4rem",
+                                fontSize: "0.9rem",
+                                fontWeight: 500,
+                                borderColor: "#00A2FF",
+                                color: "#fbfcfdff",
+                            }}
+                        >
+                            <i className="bi bi-arrow-left"></i>
+                            Go Back
+                        </button>
+
+                        {/* Title */}
+                        {/* <h2 className="h4 fw-bold mb-0" style={{ color: "#00A2FF" }}>
+                            Eternal AI
+                        </h2> */}
+                         <h2 
+    className="h4 fw-bold" 
+    style={{
+      background: 'linear-gradient(90deg, rgb(74, 222, 128), rgb(96, 165, 250))',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      backgroundClip: 'text',
+      color: 'transparent',
+      margin: 0,
+      fontFamily: "'Poppins', sans-serif"
+    }}
+  >
+    Eternal AI
+  </h2>
+                    </div>
                 </div>
+
 
                 <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center position-relative z-10 px-3">
                     {inputValue === "" && messages.length === 0 && (
@@ -804,7 +877,8 @@ Thank you for using our service! (Generated at 02:47 PM IST on Saturday, Septemb
                                             >
                                                 <i className="bi bi-camera"></i>
                                             </Button>
-                                            <Button
+
+                                            {/* <Button
                                                 variant="link"
                                                 className="border-0 p-2"
                                                 style={{
@@ -815,7 +889,32 @@ Thank you for using our service! (Generated at 02:47 PM IST on Saturday, Septemb
                                                 disabled={shouldDisableVoiceRecording()}
                                             >
                                                 <i className="bi bi-mic"></i>
-                                            </Button>
+                                            </Button> */}
+
+                                            <Button
+                        as="label"
+                        variant="link"
+                        className="border-0 p-2"
+                        style={{
+                          color:
+                            currentStep !== "image_uploaded" ? "#555" : "#ccc",
+                          fontSize: "1.2rem",
+                          cursor:
+                            currentStep !== "image_uploaded"
+                              ? "not-allowed"
+                              : "pointer",
+                        }}
+                        disabled={currentStep !== "image_uploaded"}
+                      >
+                        <i className="bi bi-music-note"></i>
+                        <input
+                          type="file"
+                          accept=".mp3,.wav"
+                          hidden
+                          onChange={(e) => handleAudioUpload(e)}
+                          disabled={currentStep !== "image_uploaded"}
+                        />
+                      </Button>
                                             <Button
                                                 variant="info"
                                                 className="rounded-pill px-3 py-2 ms-2"

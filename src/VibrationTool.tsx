@@ -24,7 +24,12 @@ const VibrationTool: React.FC = () => {
         sender: "user" | "ai";
         text?: string;
         imageList?: string[];
-        audio?: string; // blob URL for audio messages
+        audio?: string;
+        duration?: number;
+        isThinking?: boolean;
+        isSuggestion?: boolean;
+        isAnalysisReport?: boolean;
+        analysisData?: any;
     }
 
     const [messages, setMessages] = useState<
@@ -49,10 +54,14 @@ const VibrationTool: React.FC = () => {
     const [nextApiUrl, setNextApiUrl] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const [hasCalledMood, setHasCalledMood] = useState(false);
+    const hasMounted = useRef(false);
+    const [isLoadingResponse, setIsLoadingResponse] = useState(false);
 
     const baseApiUrl = 'http://192.168.29.154:8002';
 
     useEffect(() => {
+        if (hasMounted.current) return;
+        hasMounted.current = true;
         const id = localStorage.getItem('user_id');
         setUserId(id);
         if (id) {
@@ -119,60 +128,87 @@ const VibrationTool: React.FC = () => {
             imageList: attachedImages.length > 0 ? [attachedImages[0]] : []
         };
         setMessages((prev) => [...prev, userMsg]);
+        setIsLoadingResponse(true);
+
+        // Add thinking message
+        setMessages((prev) => [...prev, { sender: "ai", text: "Thinking...", isThinking: true }]);
 
         const formData = new FormData();
 
-        if (attachedImages.length > 0) {
-            // Handle image upload to /face endpoint
-            formData.append('image_data', attachedFiles[0], 'image.png');
-            console.log("Sending image to /face endpoint:", attachedImages[0]);
-            const faceUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/face/`;
-            await sendFormDataToSpecificUrl(faceUrl, formData);
-        } else if (inputValue.trim()) {
-            if (!hasCalledMood) {
-                // Handle first text input to /mood endpoint
-                formData.append('mood_input', inputValue);
-                console.log("Sending text to /mood endpoint:", inputValue);
-                const moodUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/mood/`;
-                await sendFormDataToSpecificUrl(moodUrl, formData);
-                setHasCalledMood(true); // Mark mood API as called
-            } else {
-                // Handle subsequent text input to /food endpoint
-                formData.append('food_input', inputValue);
-                console.log("Sending text to /food endpoint:", inputValue);
-                const foodUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/food/`;
-                const foodResponse = await sendFormDataToSpecificUrl(foodUrl, formData);
+        try {
+            if (attachedImages.length > 0) {
+                // Handle image upload to /face endpoint
+                formData.append('image_data', attachedFiles[0], 'image.png');
+                console.log("Sending image to /face endpoint:", attachedImages[0]);
+                const faceUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/face/`;
+                await sendFormDataToSpecificUrl(faceUrl, formData);
+            } else if (inputValue.trim()) {
+                if (!hasCalledMood) {
+                    // Handle first text input to /mood endpoint
+                    formData.append('mood_input', inputValue);
+                    console.log("Sending text to /mood endpoint:", inputValue);
+                    const moodUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/mood/`;
+                    await sendFormDataToSpecificUrl(moodUrl, formData);
+                    setHasCalledMood(true);
+                } else {
+                    // Handle subsequent text input to /food endpoint
+                    formData.append('food_input', inputValue);
+                    console.log("Sending text to /food endpoint:", inputValue);
+                    const foodUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/food/`;
+                    const foodResponse = await sendFormDataToSpecificUrl(foodUrl, formData);
 
-                // If /food API call is successful, call /analysis API
-                // Replace this part in your sendMessage function (around line 150-170)
-                // If /food API call is successful, call /analysis API
-                if (foodResponse && foodResponse.message) {
-                    const analysisUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/analysis/`;
-                    console.log("Calling /analysis endpoint");
-                    try {
+                    // If /food API call is successful, call /analysis API
+                    if (foodResponse && foodResponse.message) {
+                        const analysisUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/analysis/`;
+                        console.log("Calling /analysis endpoint");
+
                         const res = await fetch(analysisUrl, {
                             method: 'POST',
-                            body: new FormData(), // Empty FormData as per typical analysis endpoint
+                            body: new FormData(),
                         });
                         const analysisData = await res.json();
                         console.log("Analysis API response:", analysisData);
 
-                        // Fixed: Check for the correct nested structure
+                        // Remove thinking message
+                        setMessages((prev) => prev.filter(msg => !msg.isThinking));
+
                         if (analysisData.success && analysisData.data && analysisData.data.analysis_data) {
                             const analysisResult = analysisData.data.analysis_data;
 
-                            // Format the analysis data nicely for display
+                            // Create a structured data object for better formatting
                             const formattedData = {
-                                "VF Score": analysisResult.vf_analysis?.vf_score || "N/A",
+                                "VF Analysis": {
+                                    "VF Score": analysisResult.vf_analysis?.vf_score || "N/A",
+                                    "VF Change Percent": analysisResult.vf_analysis?.vf_change_percent || "N/A",
+                                    "Previous VF": analysisResult.vf_analysis?.previous_vf || "N/A"
+                                },
                                 "Analysis Summary": analysisResult.analysis_summary || "No summary available",
                                 "Inputs Processed": analysisResult.inputs_processed || {},
-                                "AI Outputs": analysisResult.ai_outputs || {},
+                                "AI Outputs": {
+                                    "VF Alerts": analysisResult.ai_outputs?.vf_alerts || [],
+                                    "Healing Prescriptions": {
+                                        "Mantras": analysisResult.ai_outputs?.healing_prescriptions?.mantras || [],
+                                        "Foods": analysisResult.ai_outputs?.healing_prescriptions?.foods || [],
+                                        "Rituals": analysisResult.ai_outputs?.healing_prescriptions?.rituals || []
+                                    },
+                                    "Flame Path Adjustments": {
+                                        "Focus Area": analysisResult.ai_outputs?.flame_path_adjustments?.focus_area || "N/A",
+                                        "Daily Practice": analysisResult.ai_outputs?.flame_path_adjustments?.daily_practice || "N/A",
+                                        "Energy Work": analysisResult.ai_outputs?.flame_path_adjustments?.energy_work || "N/A"
+                                    }
+                                },
                                 "Timestamp": analysisResult.timestamp || "N/A"
                             };
 
+                            // Create a custom message component for the analysis
                             setMessages((prev) => [
                                 ...prev,
-                                { sender: "ai", text: JSON.stringify(formattedData, null, 2) }
+                                {
+                                    sender: "ai",
+                                    text: "", // Empty text since we'll render custom content
+                                    isAnalysisReport: true,
+                                    analysisData: formattedData
+                                }
                             ]);
                         } else {
                             setMessages((prev) => [
@@ -181,12 +217,16 @@ const VibrationTool: React.FC = () => {
                             ]);
                         }
                         setNextApiUrl(analysisData.navigation?.next?.url || null);
-                    } catch (err) {
-                        console.error("Analysis API error:", err);
-                        setMessages((prev) => [...prev, { sender: "ai", text: "Error occurred in analysis." }]);
                     }
                 }
             }
+        } catch (error) {
+            // Remove thinking message on error
+            setMessages((prev) => prev.filter(msg => !msg.isThinking));
+            console.error("API error:", error);
+            setMessages((prev) => [...prev, { sender: "ai", text: "Sorry, something went wrong. Please try again." }]);
+        } finally {
+            setIsLoadingResponse(false);
         }
 
         setInputValue("");
@@ -199,7 +239,6 @@ const VibrationTool: React.FC = () => {
             textarea.style.height = "40px";
         }
     };
-
     const sendFormDataToSpecificUrl = async (url: string, formData: FormData) => {
         try {
             const res = await fetch(url, {
@@ -208,14 +247,92 @@ const VibrationTool: React.FC = () => {
             });
             const data = await res.json();
             console.log("API response:", data);
+
+            // Remove thinking message
+            setMessages((prev) => prev.filter(msg => !msg.isThinking));
+
             setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
             setNextApiUrl(data.navigation?.next?.url || null);
-            return data; // Return the response data
+            return data;
         } catch (err) {
+            // Remove thinking message on error
+            setMessages((prev) => prev.filter(msg => !msg.isThinking));
             console.error("API error:", err);
             setMessages((prev) => [...prev, { sender: "ai", text: "Error occurred." }]);
-            return null; // Return null on error
+            return null;
         }
+    };
+
+    const formatKey = (key: string) => {
+        return key
+            .replace(/_/g, ' ')
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+    };
+
+    const renderValue = (value: any): React.ReactNode => {
+        if (value === null || value === undefined) {
+            return <span className="text-muted">N/A</span>;
+        }
+
+        if (typeof value === 'boolean') {
+            return <span className={value ? 'text-success' : 'text-danger'}>{value ? 'Yes' : 'No'}</span>;
+        }
+
+        if (typeof value === 'string') {
+            return <span>{value}</span>;
+        }
+
+        if (typeof value === 'number') {
+            return <span className="fw-semibold">{value}</span>;
+        }
+
+        if (Array.isArray(value)) {
+            if (value.length === 0) return <span className="text-muted">None</span>;
+            return (
+                <ul className="list-unstyled mb-0">
+                    {value.map((item, index) => (
+                        <li key={index} className="mb-1">
+                            <span className="badge bg-secondary me-2">•</span>
+                            {typeof item === 'object' ? renderValue(item) : item}
+                        </li>
+                    ))}
+                </ul>
+            );
+        }
+
+        if (typeof value === 'object') {
+            return (
+                <div className="ms-3">
+                    {Object.entries(value).map(([subKey, subValue]) => (
+                        <div key={subKey} className="mb-2">
+                            <strong className="text-info">{formatKey(subKey)}:</strong>
+                            <div className="ms-2">{renderValue(subValue)}</div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        return <span>{String(value)}</span>;
+    };
+
+    const renderReportDynamic = (report: any) => {
+        if (!report) return null;
+
+        return (
+            <div style={{ whiteSpace: "pre-wrap" }} className="analysis-report">
+                {Object.entries(report).map(([key, value]) => (
+                    <div key={key} className="mb-4 p-3 bg-dark bg-opacity-50 rounded-3">
+                        <h6 className="fw-semibold text-primary mb-2 border-bottom border-secondary pb-1">
+                            {formatKey(key)}
+                        </h6>
+                        <div className="text-light">{renderValue(value)}</div>
+                    </div>
+                ))}
+            </div>
+        );
     };
 
     const startRecording = async () => {
@@ -238,15 +355,14 @@ const VibrationTool: React.FC = () => {
                 const audioBlob = new Blob(chunks, { type: "audio/webm;codecs=opus" });
                 const audioUrl = URL.createObjectURL(audioBlob);
 
-                // Store only the audio URL in messages
                 setMessages((prev) => [...prev, { sender: "user", audio: audioUrl }]);
                 console.log("Audio stored:", { sender: "user", audio: audioUrl });
 
-                // Send audio blob to voice endpoint as FormData
                 const formData = new FormData();
                 formData.append('audio_data', audioBlob, 'voice.webm');
                 const voiceUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/voice/`;
                 console.log("Sending audio to /voice endpoint:", audioUrl);
+
                 try {
                     const res = await fetch(voiceUrl, {
                         method: 'POST',
@@ -254,11 +370,19 @@ const VibrationTool: React.FC = () => {
                     });
                     const data = await res.json();
                     console.log("Voice API response:", data);
+
+                    // Remove thinking message
+                    setMessages((prev) => prev.filter(msg => !msg.isThinking));
+
                     setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
                     setNextApiUrl(data.navigation?.next?.url || null);
                 } catch (err) {
+                    // Remove thinking message on error
+                    setMessages((prev) => prev.filter(msg => !msg.isThinking));
                     console.error("Voice API error:", err);
                     setMessages((prev) => [...prev, { sender: "ai", text: "Error occurred." }]);
+                } finally {
+                    setIsLoadingResponse(false);
                 }
             };
             recorder.start();
@@ -283,6 +407,11 @@ const VibrationTool: React.FC = () => {
         if (mediaRecorder && isRecording) {
             mediaRecorder.stop();
             setIsRecording(false);
+            setIsLoadingResponse(true); // Add loading state
+
+            // Add thinking message for voice processing
+            setMessages((prev) => [...prev, { sender: "ai", text: "Processing voice...", isThinking: true }]);
+
             if (timerRef.current) clearInterval(timerRef.current);
             if (micStream) {
                 micStream.getTracks().forEach(track => track.stop());
@@ -381,6 +510,54 @@ const VibrationTool: React.FC = () => {
         // sendMessage(question);
     };
 
+    const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const audioUrl = URL.createObjectURL(file);
+
+    // Add user message with audio preview
+    setMessages((prev) => [
+      ...prev,
+      { sender: "user", audio: audioUrl, duration: 0 },
+    ]);
+
+    // Add "Processing..." message
+    setMessages((prev) => [
+      ...prev,
+      { sender: "ai", text: "Processing audio...", isThinking: true },
+    ]);
+
+    // Prepare API call
+    const formData = new FormData();
+    formData.append("audio_data", file, file.name);
+
+    const voiceUrl = `${baseApiUrl}/api/v1/vf/chat/${userId}/voice/`;
+
+    try {
+      const res = await fetch(voiceUrl, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      // Remove "thinking"
+      setMessages((prev) => prev.filter((m) => !m.isThinking));
+
+      setMessages((prev) => [...prev, { sender: "ai", text: data.message }]);
+      setNextApiUrl(data.navigation?.next?.url || null);
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => !m.isThinking));
+      console.error("Voice upload error:", err);
+      setMessages((prev) => [
+        ...prev,
+        { sender: "ai", text: "Audio upload failed. Please try again." },
+      ]);
+    }
+  };
+
+
     return (
         <div className="d-flex w-100 h-100 min-vh-100 min-vw-100 bg-black text-white overflow-hidden">
             {/* Sidebar */}
@@ -390,8 +567,33 @@ const VibrationTool: React.FC = () => {
             <div className="flex-grow-1 d-flex flex-column position-relative">
                 {/* Header */}
                 <div className="position-relative z-10 d-flex justify-content-between align-items-center p-4">
-                    <h2 className="h4 fw-bold">Eternal Ai</h2>
+                    <div className="d-flex align-items-center">
+                        {/* Go Back Button */}
+                        <button
+                            type="button"
+                            className="btn btn-info rounded-pill me-3"
+                            onClick={() => navigate(-1)}   // goes back one step in history
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.4rem",
+                                fontSize: "0.9rem",
+                                fontWeight: 500,
+                                borderColor: "#00A2FF",
+                                color: "#fbfcfdff",
+                            }}
+                        >
+                            <i className="bi bi-arrow-left"></i>
+                            Go Back
+                        </button>
+
+                        {/* Title */}
+                        <h2 className="h4 fw-bold mb-0" style={{ color: "#00A2FF" }}>
+                            Eternal AI
+                        </h2>
+                    </div>
                 </div>
+
 
                 {/* Main Content Area */}
                 <div className="flex-grow-1 d-flex flex-column align-items-center justify-content-center position-relative z-10 px-3">
@@ -493,6 +695,7 @@ const VibrationTool: React.FC = () => {
                         {messages.map((msg, i) => {
                             const isUser = msg.sender === "user";
                             const isSuggestion = msg.isSuggestion;
+                            const isAnalysisReport = msg.isAnalysisReport;
 
                             return (
                                 <div
@@ -502,13 +705,15 @@ const VibrationTool: React.FC = () => {
                                     <div
                                         className={`px-3 py-2 rounded-3`}
                                         style={{
-                                            maxWidth: "70%",
+                                            maxWidth: isAnalysisReport ? "90%" : "70%",
                                             whiteSpace: "pre-wrap",
                                             background: isUser
                                                 ? "#00b8f8"
                                                 : isSuggestion
                                                     ? "#e9ecef"
-                                                    : "#6c757d",
+                                                    : isAnalysisReport
+                                                        ? "rgba(12, 12, 12, 0.1)"
+                                                        : "#6c757d",
                                             color: isUser
                                                 ? "white"
                                                 : isSuggestion
@@ -516,6 +721,7 @@ const VibrationTool: React.FC = () => {
                                                     : "white",
                                             cursor: isSuggestion ? "pointer" : "default",
                                             userSelect: "none",
+                                            border: isAnalysisReport ? "1px solid rgba(7, 7, 7, 0.3)" : "none"
                                         }}
                                         onClick={() => {
                                             if (isSuggestion) {
@@ -546,7 +752,20 @@ const VibrationTool: React.FC = () => {
                                                 ))}
                                             </div>
                                         )}
-                                        {msg.text && <div>{msg.text}</div>}
+
+                                        {/* Handle analysis report */}
+                                        {isAnalysisReport && msg.analysisData ? (
+                                            <div>
+                                                <div className="mb-3 text-center">
+                                                    <h5 className="text-white mb-1">Vibrational Frequency Analysis Complete!</h5>
+                                                    <p className="text-white small mb-0">Your personalized analysis is ready</p>
+                                                </div>
+                                                {renderReportDynamic(msg.analysisData)}
+                                            </div>
+                                        ) : (
+                                            msg.text && <div>{msg.text}</div>
+                                        )}
+
                                         {msg.audio && (
                                             <VoiceMessage url={msg.audio} duration={msg.duration ?? 0} />
                                         )}
@@ -649,16 +868,35 @@ const VibrationTool: React.FC = () => {
                                                 <i className="bi bi-camera"></i>
                                             </Button>
                                             <Button
+                        as="label"
+                        variant="link"
+                        className="border-0 p-2"
+                        style={{
+                          color: "#ccc",
+                          fontSize: "1.2rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <i className="bi bi-music-note"></i>
+                        <input
+                          type="file"
+                          accept=".mp3,.wav"
+                          hidden
+                          onChange={handleAudioUpload}
+                        />
+                      </Button>
+                                            {/* <Button
                                                 variant="link"
                                                 className="border-0 p-2"
                                                 style={{ color: "#ccc", fontSize: "1.2rem" }}
                                                 onClick={startRecording}
                                             >
                                                 <i className="bi bi-mic"></i>
-                                            </Button>
+                                            </Button> */}
                                             <Button
                                                 variant="info"
                                                 className="rounded-pill px-3 py-2 ms-2"
+                                                disabled={(!inputValue.trim() && attachedImages.length === 0) || isLoadingResponse}
                                                 style={{
                                                     backgroundColor: "#00b8f8",
                                                     borderColor: "#00b8f8",
@@ -670,7 +908,13 @@ const VibrationTool: React.FC = () => {
                                                 }}
                                                 onClick={sendMessage}
                                             >
-                                                <i className="bi bi-send"></i>
+                                                {isLoadingResponse ? (
+                                                    <div className="spinner-border spinner-border-sm" role="status">
+                                                        <span className="visually-hidden">Loading...</span>
+                                                    </div>
+                                                ) : (
+                                                    <i className="bi bi-send"></i>
+                                                )}
                                             </Button>
                                         </div>
                                     </>

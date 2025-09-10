@@ -37,8 +37,8 @@ const formatKey = (key: string): string => {
     .replace("Hz", "Hz");
 };
 
-const API_URL = import.meta.env.VITE_API_BASE_URL;
-// const API_URL = "http://192.168.29.154:8002";
+// const API_URL = import.meta.env.VITE_API_BASE_URL;
+const API_URL = "http://192.168.29.154:8002";
 
 const DailyReportsPage: React.FC = () => {
   const navigate = useNavigate();
