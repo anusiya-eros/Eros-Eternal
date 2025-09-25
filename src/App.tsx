@@ -44,7 +44,7 @@ const App: React.FC = () => {
           <Route path="/harmony" element={<HarmonyIndexPage />} />
           <Route path='/vibrational-frequency' element={<VibrationTool/>}/>
           <Route path='/Healing' element={<HealingModal/>}/>
-          <Route path='ai-chat' element={<AiChat/>}/>
+          <Route path='/ai-chat' element={<AiChat/>}/>
           <Route path="/age-tracker" element={<AgeTrack/>} />
 
           <Route path="/harmony" element={<HarmonyIndexPage />} />
