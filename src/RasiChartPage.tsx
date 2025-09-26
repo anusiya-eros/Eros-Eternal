@@ -21,7 +21,7 @@ interface AstrologyResponse {
     // Add other fields if needed later
   };
 }
-
+ 
 const RasiChartPage: React.FC = () => {
   const [data, setData] = useState<AstrologyResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,13 +34,14 @@ const RasiChartPage: React.FC = () => {
       const placeOfBirth = localStorage.getItem("place_of_birth") || "Chennai, India";
       let dateOfBirth = localStorage.getItem("date_of_birth") || "07/04/2002";
       const timeOfBirth = localStorage.getItem("time_of_birth") || "01:55";
-
+ 
       if (!placeOfBirth || !dateOfBirth || !timeOfBirth) {
         throw new Error("Missing birth details. Please complete your profile first.");
       }
-
+ 
       // Normalize date to MM/DD/YYYY
       dateOfBirth = normalizeDateToMMDDYYYY(dateOfBirth);
+ 
 
       const payload = {
         user_id,
@@ -49,20 +50,20 @@ const RasiChartPage: React.FC = () => {
         tob: timeOfBirth,
         timezone: "5:30",
       };
-
+ 
       const response = await fetch(
-        'http://192.168.29.154:6001/api/v1/vedastro/get_astrology_data',
+        'http://eros-eternal.runai-project-immerso-innnovation-venture-pvt.inferencing.shakticloud.ai/api/v1/vedastro/get_astrology_data',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         }
       );
-
+ 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result: AstrologyResponse = await response.json();
       if (!result.success) throw new Error(result.message || 'Failed to fetch data');
-
+ 
       setData(result);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -91,14 +92,15 @@ const RasiChartPage: React.FC = () => {
     console.warn("Unrecognized date format:", input);
     return input;
   }
-
+ 
   useEffect(() => {
     fetchAstrologyData();
   }, []);
-
+ 
   // ✅ Fixed download function
   const downloadImage = (url: string, filename: string) => {
     const cleanUrl = url.trim();
+ 
 
     // Handle data URLs (though not used here, kept for safety)
     if (cleanUrl.startsWith('')) {
@@ -131,32 +133,35 @@ const RasiChartPage: React.FC = () => {
         alert('Failed to download image. Try opening in new tab.');
       });
   };
-
+ 
   // === Loading State ===
   if (loading) {
     return (
-      <div 
+      <div
         className="vh-100 vw-100 d-flex flex-column align-items-center justify-content-center"
-        style={{ 
+        style={{
+
           backgroundColor: '#000',
           position: 'fixed',
           top: 0,
           left: 0,
-          zIndex: 1050 
+          zIndex: 1050
+
         }}
       >
         <div className="text-center">
           <div className="mb-4">
-            <Spinner 
-              animation="border" 
-              variant="info" 
-              style={{ 
-                width: '3rem', 
+            <Spinner
+              animation="border"
+              variant="info"
+              style={{
+                width: '3rem',
                 height: '3rem',
                 borderWidth: '0.25em'
-              }} 
+              }}
             />
-            <div 
+            <div
+
               className="position-absolute top-50 start-50 translate-middle"
               style={{
                 width: '4.5rem',
@@ -197,7 +202,7 @@ const RasiChartPage: React.FC = () => {
       </div>
     );
   }
-
+ 
   const { rasiChart, navamshaChart } = data.data.chartImages;
 
   return (
@@ -214,7 +219,7 @@ const RasiChartPage: React.FC = () => {
         <h2 className="mb-0">Rasi & Navamsha Charts</h2>
         <div></div>
       </div>
-
+ 
       <Container fluid>
         <Row className="g-4">
           {/* Rasi Chart */}
@@ -301,5 +306,5 @@ const RasiChartPage: React.FC = () => {
     </div>
   );
 };
-
+ 
 export default RasiChartPage;

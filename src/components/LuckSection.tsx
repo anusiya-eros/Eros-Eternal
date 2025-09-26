@@ -27,7 +27,7 @@ interface PersonalMonthResponse {
   status: number;
 }
 
-const API_URL = "http://192.168.29.154:6001";
+const API_URL = "http://eros-eternal.runai-project-immerso-innnovation-venture-pvt.inferencing.shakticloud.ai";
 
 export const LuckSection: React.FC = () => {
   const [flippedIndexes, setFlippedIndexes] = useState<Set<number>>(new Set());

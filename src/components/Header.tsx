@@ -37,7 +37,7 @@ export const Header: React.FC = () => {
       };
 
       const response = await fetch(
-        `http://192.168.29.154:6001/api/v1/vedastro/get_astrology_data`,
+        `http://eros-eternal.runai-project-immerso-innnovation-venture-pvt.inferencing.shakticloud.ai/api/v1/vedastro/get_astrology_data`,
         {
           method: "POST",
           headers: {
@@ -71,6 +71,8 @@ export const Header: React.FC = () => {
       alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
+
+  const username = localStorage.getItem('username') || 'Guest';
   return (
     <div
       style={{
@@ -270,16 +272,18 @@ export const Header: React.FC = () => {
         {/* Text Content */}
         <div style={{ flex: 1 }}>
           <h2
-  style={{
-    fontSize: "1.5rem",
-    fontWeight: "600",
-    color: "white",
-    margin: "0 0 8px 0",
-    fontFamily: "Poppins",
-  }}
->
-  Welcome, {username}
-</h2>
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: "600",
+              color: "white",
+              margin: "0 0 8px 0",
+              fontFamily: "Poppins",
+            }}
+          >
+            Welcome, {username}
+          </h2>
+
+
           <p
             style={{
               fontSize: "1rem",
@@ -315,7 +319,7 @@ export const Header: React.FC = () => {
                 "rgba(255, 255, 255, 0.2)";
             }}
             // onClick={fetchAstrologyData}
-             onClick={() => navigate('/rasi-chart')}
+            onClick={() => navigate('/rasi-chart')}
           >
             View Your Rasi Chart
           </button>
