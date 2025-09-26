@@ -11,6 +11,8 @@ export const Header: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const username = localStorage.getItem('username') || 'Guest';
   const fetchAstrologyData = async () => {
     try {
       // Get data from localStorage
@@ -268,16 +270,16 @@ export const Header: React.FC = () => {
         {/* Text Content */}
         <div style={{ flex: 1 }}>
           <h2
-            style={{
-              fontSize: "1.5rem",
-              fontWeight: "600",
-              color: "white",
-              margin: "0 0 8px 0",
-              fontFamily: "Poppins",
-            }}
-          >
-            Welcome, Nithish
-          </h2>
+  style={{
+    fontSize: "1.5rem",
+    fontWeight: "600",
+    color: "white",
+    margin: "0 0 8px 0",
+    fontFamily: "Poppins",
+  }}
+>
+  Welcome, {username}
+</h2>
           <p
             style={{
               fontSize: "1rem",

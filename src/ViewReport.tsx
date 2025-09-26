@@ -21,6 +21,7 @@ interface ReportData {
             kosha_alignment?: string;
             star_magnitude?: string;
             longevity_score?: string;
+              protection_level?: string | number;
         };
         detailed_analysis?: string;
         recommendations?: {
@@ -120,6 +121,7 @@ const ViewReport = () => {
             assessment.kosha_alignment ||
             assessment.star_magnitude ||
             assessment.longevity_score ||
+            assessment.protection_level ||
            'N/A';
     };
 

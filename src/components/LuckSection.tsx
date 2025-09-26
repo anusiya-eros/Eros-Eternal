@@ -336,9 +336,9 @@ useEffect(() => {
             <strong>Theme:</strong> {personalMonth.meaning}
           </p>
           <p style={backQuote}>"{personalMonth.detailed_meaning}"</p>
-          <p style={smallText}>
+          {/* <p style={smallText}>
             <strong>Target:</strong> {personalMonth.target_date}
-          </p>
+          </p> */}
         </>
       ) : null}
     </div>
